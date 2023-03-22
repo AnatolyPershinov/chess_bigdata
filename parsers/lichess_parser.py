@@ -6,7 +6,7 @@ import plotly.express as px
 f = open("data/lichess_db_standard_rated_2018-01.pgn")
     
 def main():
-    a, m = get_two_dfs()
+    a, m = get_and_parse_next_analysed_game()
     
     
 def get_next_analysed_game():
@@ -46,10 +46,11 @@ def params_to_dict(str_list):
             for i in str_list
         ]
     }
-
-
-def moves_to_dict(moves):
-    s = moves.split(" ")
+   
+    
+def moves_to_df(moves):
+    s = moves.replace("[", "").replace("]", "")
+    s = s.split(" ")
     s = s[:-1]
     
     # Если последний ход - мат, для него нет оценки позиции (игра окончена)
@@ -57,49 +58,35 @@ def moves_to_dict(moves):
     # Чтобы исправить, чуть подправим в конце
     if len(s) % 8 != 0:
         s.append(s[-2])
-        s[-3] = "Game Over"
-    
-    return {
+        s[-3] = "Checkmate"
+
+    df = pd.DataFrame.from_dict({
+                
         "WhiteMove": s[1::16],
-        "WhiteEval": [i.strip("[]") for i in s[4::16]],
-        "WhiteTime": [i.strip("[]") for i in s[6::16]],
+        "WhiteEval": s[4::16],
+        "WhiteTime": s[6::16],
         
         "BlackMove": s[9::16],
-        "BlackEval": [i.strip("[]") for i in s[12::16]],
-        "BlackTime": [i.strip("[]") for i in s[14::16]],
-    }
-
-
-def get_and_parse_next_analysed_game():
-    game = get_next_analysed_game()
-    return {
-        **params_to_dict(game[:-1]),
-        **moves_to_dict(game[-1])
-    }
-    
-    
-def get_moves_df(game):
-    df = pd.DataFrame.from_dict({
-        
-        "WhiteMove": game["WhiteMove"],
-        "WhiteEval": game["WhiteEval"],
-        "WhiteTime": game["WhiteTime"],
-        
-        "BlackMove": game["BlackMove"],
-        "BlackEval": game["BlackEval"],
-        "BlackTime": game["BlackTime"],
+        "BlackEval": s[12::16],
+        "BlackTime": s[14::16],
     
     }, orient="index").transpose()
     
     df["MoveNumber"] = df.index + 1
     
+    # Анализ доступен только для первых 100 ходов
+    # Строчки без него не нужны
+    df = df.head(100)
+
     return df
 
 
-def get_two_dfs():
-    a = get_and_parse_next_analysed_game()
-    m = get_moves_df(a)
-    return a, m
+def get_and_parse_next_analysed_game():
+    game = get_next_analysed_game()
+    return (
+        params_to_dict(game[:-1]), 
+        moves_to_df(game[-1])
+    )
     
     
 if __name__ == "__main__":
